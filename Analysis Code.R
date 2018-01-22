@@ -536,3 +536,319 @@ ggplot(aes(x=specificity,y=sensitivity),data=dat)+
 
 
 
+
+
+
+############################################################
+##                                                        ##
+##         Functional Analysis Part                       ##
+##                                                        ##
+############################################################
+
+
+############################# Meta-analysis on GO genefamily ################################
+
+feng=read.csv("feng.csv")               ### Read file in the "GO genefamily abundance"
+vogtmann=read.csv("vogtmann.csv")
+yu=read.csv("yu.csv")
+zeller=read.csv("zeller.csv")
+
+
+feng=feng[feng$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(feng$age,feng$BMI,feng$gender)
+feng=feng[complete.cases(phenotype),]
+feng$grouped_diagnosis=as.character(feng$grouped_diagnosis)
+feng.GO=feng[,-c(1:14)]
+x=(feng.GO>0)*1
+sum.feng=colSums(x)
+
+
+
+zeller=zeller[zeller$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(zeller$age,zeller$BMI,zeller$gender)
+zeller=zeller[complete.cases(phenotype),]
+zeller$grouped_diagnosis=as.character(zeller$grouped_diagnosis)
+zeller.GO=zeller[,-c(1:14)]
+x=(zeller.GO>0)*1
+sum.zeller=colSums(x)
+
+
+
+yu=yu[yu$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(yu$age,yu$BMI,yu$gender)
+yu=yu[complete.cases(phenotype),]
+yu$grouped_diagnosis=as.character(yu$grouped_diagnosis)
+yu.GO=yu[,-c(1:14)]
+x=(yu.GO>0)*1
+sum.yu=colSums(x)
+
+
+
+vogtmann=vogtmann[vogtmann$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(vogtmann$age,vogtmann$BMI,vogtmann$gender)
+vogtmann=vogtmann[complete.cases(phenotype),]
+vogtmann$grouped_diagnosis=as.character(vogtmann$grouped_diagnosis)
+vogtmann.GO=vogtmann[,-c(1:14)]
+x=(vogtmann.GO>0)*1
+sum.vogtmann=colSums(x)
+
+
+ratio=0.5
+x1=(sum.feng>nrow(feng.GO)*ratio)*1
+x2=(sum.vogtmann>nrow(vogtmann.GO)*ratio)*1
+x3=(sum.yu>nrow(yu.GO)*ratio)*1
+x4=(sum.zeller>nrow(zeller.GO)*ratio)*1
+x=data.frame(x1,x2,x3,x4)
+x_sum=4*apply(x, 1, mean)
+
+feng.GO=feng.GO[,(x_sum==4)]
+vogtmann.GO=vogtmann.GO[,(x_sum==4)]
+yu.GO=yu.GO[,(x_sum==4)]
+zeller.GO=zeller.GO[,(x_sum==4)]
+
+
+## Austrian Cohort
+response=as.factor(feng$grouped_diagnosis)
+direction=p_value=p1=p2=rep(0,ncol(feng.GO))
+for (i in 1:ncol(feng.GO)){
+  m1=wilcox_test(feng.GO[,i]~response,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.feng=p1
+p2.feng=p2
+
+
+## American Cohort 
+response=as.factor(vogtmann$grouped_diagnosis)
+direction=p_value=p1=p2=rep(0,ncol(vogtmann.GO))
+for (i in 1:ncol(vogtmann.GO)){
+  m1=wilcox_test(vogtmann.GO[,i]~response,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.vogtmann=p1
+p2.vogtmann=p2
+
+
+
+## Chinese Cohort 
+age_group=(yu$age %in% c(20:50))*1+(yu$age %in% c(51:60))*2+
+  (yu$age %in% c(61:70))*3+(yu$age>70)*4
+age_group=as.factor(age_group)
+response=as.factor(yu$grouped_diagnosis)
+
+direction=p_value=p1=p2=rep(0,ncol(yu.GO))
+for (i in 1:ncol(yu.GO)){
+  m1=wilcox_test(yu.GO[,i]~response|age_group,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.yu=p1
+p2.yu=p2
+
+## German Cohort 
+age_group=(zeller$age %in% c(20:50))*1+(zeller$age %in% c(51:60))*2+
+  (zeller$age %in% c(61:70))*3+(zeller$age>70)*4
+age_group=as.factor(age_group)
+response=as.factor(zeller$grouped_diagnosis)
+
+direction=p_value=p1=p2=rep(0,ncol(zeller.GO))
+for (i in 1:ncol(zeller.GO)){
+  m1=wilcox_test(zeller.GO[,i]~response|age_group,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.zeller=p1
+p2.zeller=p2
+
+
+comb_p.increase=rep(0,ncol(feng.GO))
+for (i in 1:ncol(feng.GO)){
+  m1=wilkinsonp(c(p1.feng[i],p1.vogtmann[i],p1.zeller[i],p1.yu[i]),r=4)
+  comb_p.increase[i]=m1$p
+}
+comb_p.increase=p.adjust(comb_p.increase,method = "BH")
+
+comb_p.decrease=rep(0,ncol(feng.GO))
+for (i in 1:ncol(feng.GO)){
+  m1=wilkinsonp(c(p2.feng[i],p2.vogtmann[i],p2.zeller[i],p2.yu[i]),r=4)
+  comb_p.decrease[i]=m1$p
+}
+comb_p.decrease=p.adjust(comb_p.decrease,method = "BH")
+
+## generate the CRC enriched/depleted GO genefamilies
+GO.enriched=names(feng.GO)[comb_p.increase<0.05]
+GO.depleted=names(feng.GO)[comb_p.decrease<0.05]
+
+
+
+
+
+
+
+############################# Meta-analysis on KO genefamily ################################
+
+feng=read.csv("feng.csv")               ### Read file in the "KO genefamily abundance"
+vogtmann=read.csv("vogtmann.csv")
+yu=read.csv("yu.csv")
+zeller=read.csv("zeller.csv")
+
+
+feng=feng[feng$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(feng$age,feng$BMI,feng$gender)
+feng=feng[complete.cases(phenotype),]
+feng$grouped_diagnosis=as.character(feng$grouped_diagnosis)
+feng.KO=feng[,-c(1:14)]
+x=(feng.KO>0)*1
+sum.feng=colSums(x)
+
+
+
+zeller=zeller[zeller$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(zeller$age,zeller$BMI,zeller$gender)
+zeller=zeller[complete.cases(phenotype),]
+zeller$grouped_diagnosis=as.character(zeller$grouped_diagnosis)
+zeller.KO=zeller[,-c(1:14)]
+x=(zeller.KO>0)*1
+sum.zeller=colSums(x)
+
+
+
+yu=yu[yu$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(yu$age,yu$BMI,yu$gender)
+yu=yu[complete.cases(phenotype),]
+yu$grouped_diagnosis=as.character(yu$grouped_diagnosis)
+yu.KO=yu[,-c(1:14)]
+x=(yu.KO>0)*1
+sum.yu=colSums(x)
+
+
+
+vogtmann=vogtmann[vogtmann$grouped_diagnosis %in% c("CRC","normal_control"),]
+phenotype=data.frame(vogtmann$age,vogtmann$BMI,vogtmann$gender)
+vogtmann=vogtmann[complete.cases(phenotype),]
+vogtmann$grouped_diagnosis=as.character(vogtmann$grouped_diagnosis)
+vogtmann.KO=vogtmann[,-c(1:14)]
+x=(vogtmann.KO>0)*1
+sum.vogtmann=colSums(x)
+
+
+ratio=0.5
+x1=(sum.feng>nrow(feng.KO)*ratio)*1
+x2=(sum.vogtmann>nrow(vogtmann.KO)*ratio)*1
+x3=(sum.yu>nrow(yu.KO)*ratio)*1
+x4=(sum.zeller>nrow(zeller.KO)*ratio)*1
+x=data.frame(x1,x2,x3,x4)
+x_sum=4*apply(x, 1, mean)
+
+feng.KO=feng.KO[,(x_sum==4)]
+vogtmann.KO=vogtmann.KO[,(x_sum==4)]
+yu.KO=yu.KO[,(x_sum==4)]
+zeller.KO=zeller.KO[,(x_sum==4)]
+
+
+## Austrian Cohort
+response=as.factor(feng$grouped_diagnosis)
+direction=p_value=p1=p2=rep(0,ncol(feng.KO))
+for (i in 1:ncol(feng.KO)){
+  m1=wilcox_test(feng.KO[,i]~response,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.feng=p1
+p2.feng=p2
+
+
+## American Cohort 
+response=as.factor(vogtmann$grouped_diagnosis)
+direction=p_value=p1=p2=rep(0,ncol(vogtmann.KO))
+for (i in 1:ncol(vogtmann.KO)){
+  m1=wilcox_test(vogtmann.KO[,i]~response,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.vogtmann=p1
+p2.vogtmann=p2
+
+
+
+## Chinese Cohort 
+age_group=(yu$age %in% c(20:50))*1+(yu$age %in% c(51:60))*2+
+  (yu$age %in% c(61:70))*3+(yu$age>70)*4
+age_group=as.factor(age_group)
+response=as.factor(yu$grouped_diagnosis)
+
+direction=p_value=p1=p2=rep(0,ncol(yu.KO))
+for (i in 1:ncol(yu.KO)){
+  m1=wilcox_test(yu.KO[,i]~response|age_group,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.yu=p1
+p2.yu=p2
+
+## German Cohort 
+age_group=(zeller$age %in% c(20:50))*1+(zeller$age %in% c(51:60))*2+
+  (zeller$age %in% c(61:70))*3+(zeller$age>70)*4
+age_group=as.factor(age_group)
+response=as.factor(zeller$grouped_diagnosis)
+
+direction=p_value=p1=p2=rep(0,ncol(zeller.KO))
+for (i in 1:ncol(zeller.KO)){
+  m1=wilcox_test(zeller.KO[,i]~response|age_group,alternative="greater")
+  if (pvalue(m1)<0.5) direction[i]=1
+  else direction[i]=-1
+  p1[i]=pvalue(m1)
+  p2[i]=1-pvalue(m1)
+  p_value[i]=2*min(pvalue(m1),1-pvalue(m1))
+}
+p1.zeller=p1
+p2.zeller=p2
+
+
+comb_p.increase=rep(0,ncol(feng.KO))
+for (i in 1:ncol(feng.KO)){
+  m1=wilkinsonp(c(p1.feng[i],p1.vogtmann[i],p1.zeller[i],p1.yu[i]),r=4)
+  comb_p.increase[i]=m1$p
+}
+comb_p.increase=p.adjust(comb_p.increase,method = "BH")
+
+comb_p.decrease=rep(0,ncol(feng.KO))
+for (i in 1:ncol(feng.KO)){
+  m1=wilkinsonp(c(p2.feng[i],p2.vogtmann[i],p2.zeller[i],p2.yu[i]),r=4)
+  comb_p.decrease[i]=m1$p
+}
+comb_p.decrease=p.adjust(comb_p.decrease,method = "BH")
+
+## generate the CRC enriched/depleted KO genefamilies
+KO.enriched=names(feng.KO)[comb_p.increase<0.05]
+KO.depleted=names(feng.KO)[comb_p.decrease<0.05]
+
+
+
+
+
+
+
